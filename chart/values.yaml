@@ -18,18 +18,25 @@ secret:
 configMap:
   responseConfig: |-
     {
-       "Versions": [{
-          "Name": "v1.0.0",
-          "ReleaseDate": "2020-05-18T12:30:00Z",
-          "Tags": ["latest"]
-       }]
+      "versions": [{
+        "name": "v1.0.0",
+        "releaseDate": "2020-05-18T12:30:00Z",
+        "tags": ["latest"]
+      }]
+    }
+  requestSchema: |-
+    {
+      "appVersionSchema": {
+        "dataType": "string",
+        "maxLen": 200
+      }
     }
 
 replicaCount: 3
 
 image:
   repository: longhornio/upgrade-responder
-  tag: v0.1.2
+  tag: v0.4.0
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -38,6 +45,13 @@ fullnameOverride: ""
 service:
   type: ClusterIP
   port: 8314
+
+flags:
+  cacheSyncInterval: 1
+  cacheSize: 100
+  # Scarf.sh telemetry configuration
+  scarfEndpoint: "" # Optional: URL template with {version} placeholder (e.g., https://yourcompany.gateway.scarf.sh/package/{version})
+  scarfTimeout: 30 # Timeout in seconds for Scarf.sh requests
 
 ingress:
   enabled: false
@@ -48,17 +62,17 @@ ingress:
   hosts:
     - example.com
   tls:
-   - secretName: example-com-tls
-     hosts:
-       - example.com
+    - secretName: example-com-tls
+      hosts:
+        - example.com
 
 resources:
   limits:
-   cpu: 200m
-   memory: 256Mi
+    cpu: 200m
+    memory: 256Mi
   requests:
-   cpu: 100m
-   memory: 128Mi
+    cpu: 100m
+    memory: 128Mi
 
 nodeSelector: {}
 

@@ -20,6 +20,8 @@ var VERSION = "v0.0.0-dev"
 const (
 	FlagUpgradeResponseConfiguration = "upgrade-response-config"
 	EnvUpgradeResponseConfiguration  = "UPGRADE_RESPONSE_CONFIG"
+	FlagRequestSchema                = "request-schema"
+	EnvRequestSchema                 = "REQUEST_SCHEMA"
 	FlagApplicationName              = "application-name"
 	EnvApplicationName               = "APPLICATION_NAME"
 	FlagInfluxDBURL                  = "influxdb-url"
@@ -34,6 +36,14 @@ const (
 	EnvGeoDB                         = "GEODB"
 	FlagPort                         = "port"
 	EnvPort                          = "PORT"
+	FlagCacheSyncInterval            = "cache-sync-interval"
+	EnvCacheSyncInterval             = "CACHE_SYNC_INTERVAL"
+	FlagCacheSize                    = "cache-size"
+	EnvCacheSize                     = "CACHE_SIZE"
+	FlagScarfEndpoint                = "scarf-endpoint"
+	EnvScarfEndpoint                 = "SCARF_ENDPOINT"
+	FlagScarfTimeout                 = "scarf-timeout"
+	EnvScarfTimeout                  = "SCARF_TIMEOUT"
 )
 
 func main() {
@@ -73,6 +83,11 @@ func UpgradeResponderCmd() cli.Command {
 				Usage:  "Specify the response configuration file for upgrade query",
 			},
 			cli.StringFlag{
+				Name:   FlagRequestSchema,
+				EnvVar: EnvRequestSchema,
+				Usage:  "Specify the request schema file which contains the rules that the upgrade responder server use to validate request data before writing to database",
+			},
+			cli.StringFlag{
 				Name:   FlagApplicationName,
 				EnvVar: EnvApplicationName,
 				Usage:  "Specify the name of the application that is using this upgrade checker. This will be used to create a database name <application-name>_upgrade_responder in the InfluxDB to store all data for this upgrade checker",
@@ -109,6 +124,29 @@ func UpgradeResponderCmd() cli.Command {
 				Value:  8314,
 				Usage:  "Specify the port number",
 			},
+			cli.IntFlag{
+				Name:   FlagCacheSyncInterval,
+				EnvVar: EnvCacheSyncInterval,
+				Value:  1,
+				Usage:  "Specify the period for how often the server should sync data to database. Measured in second. The server aggregates the client requests before writing to influxDB.",
+			},
+			cli.IntFlag{
+				Name:   FlagCacheSize,
+				EnvVar: EnvCacheSize,
+				Value:  100,
+				Usage:  "Specify the cache size of server. Once the number of data points in cache is bigger than cache size, the server flush and write all data in the cache to influxDB.",
+			},
+			cli.StringFlag{
+				Name:   FlagScarfEndpoint,
+				EnvVar: EnvScarfEndpoint,
+				Usage:  "Specify the Scarf.sh endpoint URL template. Use {version} placeholder for app version substitution (e.g., https://your.gateway.scarf.sh/packageroute/{version})",
+			},
+			cli.IntFlag{
+				Name:   FlagScarfTimeout,
+				EnvVar: EnvScarfTimeout,
+				Value:  30,
+				Usage:  "Specify the timeout in seconds for Scarf.sh requests",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			return startUpgradeResponder(c)
@@ -121,7 +159,8 @@ func startUpgradeResponder(c *cli.Context) error {
 		return err
 	}
 
-	cfg := c.String(FlagUpgradeResponseConfiguration)
+	responseConfigFile := c.String(FlagUpgradeResponseConfiguration)
+	requestSchemaFile := c.String(FlagRequestSchema)
 	influxURL := c.String(FlagInfluxDBURL)
 	influxUser := c.String(FlagInfluxDBUser)
 	influxPass := c.String(FlagInfluxDBPass)
@@ -129,9 +168,13 @@ func startUpgradeResponder(c *cli.Context) error {
 	applicationName := c.String(FlagApplicationName)
 	geodb := c.String(FlagGeoDB)
 	port := c.Int(FlagPort)
+	cacheSyncInterval := c.Int(FlagCacheSyncInterval)
+	cacheSize := c.Int(FlagCacheSize)
+	scarfEndpoint := c.String(FlagScarfEndpoint)
+	scarfTimeout := c.Int(FlagScarfTimeout)
 
 	done := make(chan struct{})
-	server, err := upgraderesponder.NewServer(done, applicationName, cfg, influxURL, influxUser, influxPass, queryPeriod, geodb)
+	server, err := upgraderesponder.NewServer(done, applicationName, responseConfigFile, requestSchemaFile, influxURL, influxUser, influxPass, queryPeriod, geodb, cacheSyncInterval, cacheSize, scarfEndpoint, scarfTimeout)
 	if err != nil {
 		return err
 	}
@@ -164,9 +207,14 @@ func RegisterShutdownChannel(done chan struct{}) {
 }
 
 func validateCommandLineArguments(c *cli.Context) error {
-	cfg := c.String(FlagUpgradeResponseConfiguration)
-	if cfg == "" {
+	responseConfigFile := c.String(FlagUpgradeResponseConfiguration)
+	if responseConfigFile == "" {
 		return fmt.Errorf("no upgrade response configuration file specified")
+	}
+
+	requestSchemaFile := c.String(FlagRequestSchema)
+	if requestSchemaFile == "" {
+		return fmt.Errorf("no request schema file specified")
 	}
 
 	applicationName := c.String(FlagApplicationName)

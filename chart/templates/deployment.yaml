@@ -15,6 +15,8 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      annotations:
+        checksum/upgradeResponderConfigMap: {{ include (print $.Template.BasePath "/upgradeResponderConfigMap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: {{ include "upgradeResponder.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
@@ -43,6 +45,16 @@ spec:
                 key: influxDBPassword
           - name: PORT
             value: "{{ .Values.service.port }}"
+          - name: CACHE_SYNC_INTERVAL
+            value: "{{ .Values.flags.cacheSyncInterval }}"
+          - name: CACHE_SIZE
+            value: "{{ .Values.flags.cacheSize }}"
+          {{- if .Values.flags.scarfEndpoint }}
+          - name: SCARF_ENDPOINT
+            value: "{{ .Values.flags.scarfEndpoint }}"
+          {{- end }}
+          - name: SCARF_TIMEOUT
+            value: "{{ .Values.flags.scarfTimeout }}"
           command:
           - upgrade-responder
           args:
@@ -51,7 +63,9 @@ spec:
           - --application-name
           - $(APPLICATION_NAME)
           - --upgrade-response-config
-          - /run/secrets/upgrade-responder-config.json
+          - /run/secrets/response-config.json
+          - --request-schema
+          - /run/secrets/request-schema.json
           - --influxdb-url
           - $(INFLUXDB_URL)
           - --influxdb-user
@@ -60,6 +74,16 @@ spec:
           - $(INFLUXDB_PASSWORD)
           - --port
           - $(PORT)
+          - --cache-sync-interval
+          - $(CACHE_SYNC_INTERVAL)
+          - --cache-size
+          - $(CACHE_SIZE)
+          {{- if .Values.flags.scarfEndpoint }}
+          - --scarf-endpoint
+          - $(SCARF_ENDPOINT)
+          {{- end }}
+          - --scarf-timeout
+          - $(SCARF_TIMEOUT)
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -73,9 +97,12 @@ spec:
           #     path: /
           #     port: http
           volumeMounts:
-          - mountPath: /run/secrets/upgrade-responder-config.json
-            name: {{ include "upgradeResponder.configMapName" . }}
-            subPath: upgrade-responder-config.json
+          - mountPath: /run/secrets/response-config.json
+            name: {{ include "upgradeResponder.upgradeResponderConfigMapName" . }}
+            subPath: response-config.json
+          - mountPath: /run/secrets/request-schema.json
+            name: {{ include "upgradeResponder.upgradeResponderConfigMapName" . }}
+            subPath: request-schema.json
           resources:
 {{ toYaml .Values.resources | indent 12 }}
     {{- with .Values.nodeSelector }}
@@ -91,6 +118,6 @@ spec:
 {{ toYaml . | indent 8 }}
     {{- end }}
       volumes:
-      - name: {{ include "upgradeResponder.configMapName" . }}
+      - name: {{ include "upgradeResponder.upgradeResponderConfigMapName" . }}
         configMap:
-          name: {{ include "upgradeResponder.configMapName" . }}
+          name: {{ include "upgradeResponder.upgradeResponderConfigMapName" . }}

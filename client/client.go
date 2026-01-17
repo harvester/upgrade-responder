@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 )
@@ -23,14 +23,21 @@ type UpgradeRequester interface {
 }
 
 type Version struct {
-	Name        string // must be in semantic versioning
-	ReleaseDate string
-	Tags        []string
+	Name                 string            `json:"name"` // must be in semantic versioning
+	ReleaseDate          string            `json:"releaseDate"`
+	MinUpgradableVersion string            `json:"minUpgradableVersion"`
+	Tags                 []string          `json:"tags"`
+	ExtraInfo            map[string]string `json:"extraInfo"`
 }
 
 type CheckUpgradeRequest struct {
-	AppVersion string            `json:"appVersion"`
-	ExtraInfo  map[string]string `json:"extraInfo"`
+	AppVersion string `json:"appVersion"`
+
+	ExtraTagInfo   map[string]string      `json:"extraTagInfo"`
+	ExtraFieldInfo map[string]interface{} `json:"extraFieldInfo"`
+
+	// Deprecated: replaced by ExtraTagInfo
+	ExtraInfo map[string]string `json:"extraInfo"`
 }
 
 type CheckUpgradeResponse struct {
@@ -110,7 +117,7 @@ func (c *UpgradeChecker) CheckUpgrade(currentAppVersion string, extraInfo map[st
 	defer r.Body.Close()
 	if r.StatusCode != http.StatusOK {
 		message := ""
-		messageBytes, err := ioutil.ReadAll(r.Body)
+		messageBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			message = err.Error()
 		} else {
